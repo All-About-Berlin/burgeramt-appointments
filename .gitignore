@@ -1,0 +1,3 @@
+# Following files are ignored during git commit
+# Ignore the main config.json file
+config/config.json

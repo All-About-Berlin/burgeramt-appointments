@@ -11,7 +11,7 @@ import random
 import requests
 import time
 import websockets
-
+import telegram
 
 logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -125,12 +125,37 @@ async def on_connect(websocket, path):
     finally:
         connected_clients.remove(websocket)
 
+#  Telegram Notifcation Added by Siva Rajendran
+
+def telegram_notify(message):
+    with open('./config/config.json', 'r') as config_file:
+        t = json.load(config_file)
+        token = t['telegram_token']
+        chat_id = t['telegram_chat_id']
+        notify = telegram.Bot(token=token)
+    # Loads the Json results
+    available_dates = []
+    available_datestring = []
+    if not last_message['appointmentDates']: # To check if its an empty array
+        print("No Appointment dates available")
+        notify.sendMessage(chat_id=chat_id, text="No Appointment dates are found so far")
+    else:   
+        for dates in message['appointmentDates']:     
+            if dates not in available_datestring:  # To check for duplicates inside dates                
+                datestime = datetime.strptime(dates,'%Y-%m-%dT%H:%M:%SZ')
+                date_str = datestime.strftime("%d-%b-%Y")
+                available_dates.append(date_str)
+                available_dates_str = ','.join(available_dates)
+                available_datestring.append(dates)            
+        notify_str= "The next appointment for flat registration is available on the following dates "+available_dates_str+". Please use this URL to book the appointment faster: "+appointments_url
+        notify.sendMessage(chat_id=chat_id, text=notify_str)
 
 async def main():
     global last_message
     async with websockets.serve(on_connect, port=80):
         while True:
             last_message = look_for_appointments()
+            telegram_notify(last_message) # Telegram Notification
             websockets.broadcast(connected_clients, json.dumps(last_message))
             await asyncio.sleep(delay)
 
