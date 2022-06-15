@@ -68,7 +68,7 @@ def get_appointments():
     # Load the first two months
     response_p1 = session.get(appointments_url, headers=headers)
     response_p1.raise_for_status()
-    time.sleep(5)
+    time.sleep(1)
 
     # Load the next two months
     response_p2 = session.get(
