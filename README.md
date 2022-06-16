@@ -7,9 +7,10 @@ This server looks for Bürgeramt appointment every few seconds, and broadcasts t
 ### Standalone
 
 1. Set the required environment variables:
-
-    * `BOOKING_TOOL_EMAIL`: Your email. Required [here](https://service.berlin.de/robots.txt).
-    * `BOOKING_TOOL_ID`: A unique identifier for your script. This helps Berlin.de distinguish between different people who run the same script.
+    ```
+    export BOOKING_TOOL_EMAIL=your@email.com
+    export BOOKING_TOOL_ID=johnsmith-dev
+    ```
 
 2. Run the appointment booking tool
     ```
