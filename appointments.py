@@ -77,7 +77,7 @@ def get_appointments():
     )
     response_p2.raise_for_status()
 
-    return sorted(parse_appointment_dates(response_p1.text) + parse_appointment_dates(response_p2.text))
+    return sorted(list(set(parse_appointment_dates(response_p1.text) + parse_appointment_dates(response_p2.text))))
 
 
 def parse_appointment_dates(page_content):
