@@ -17,7 +17,7 @@ import websockets
 logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
     format='[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s',
-    level=logging.WARNING,
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,7 @@ def look_for_appointments():
     try:
         appointments = get_appointments()
         delay = 180
+        logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 200,
