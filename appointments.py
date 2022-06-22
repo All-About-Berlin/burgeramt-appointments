@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup, SoupStrainer
-from datetime import date, datetime
 from datetime import datetime, date, timedelta
 from pathlib import Path
 import asyncio
