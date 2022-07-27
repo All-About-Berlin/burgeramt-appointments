@@ -1,14 +1,10 @@
 from bs4 import BeautifulSoup, SoupStrainer
-from datetime import date, datetime
-from datetime import datetime, date, timedelta
-from pathlib import Path
+from datetime import datetime
 import asyncio
-import csv
 import json
 import logging
 import os
 import pytz
-import random
 import requests
 import time
 import websockets
@@ -21,6 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Disable websocket connection log spam
+logging.getLogger('websockets.server').setLevel(logging.ERROR)
 
 try:
     # Berlin.de requires the user agent to include your email
