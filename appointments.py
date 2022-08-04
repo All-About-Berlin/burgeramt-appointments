@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # Disable websocket connection log spam
 logging.getLogger('websockets.server').setLevel(logging.ERROR)
 
+server_port = 80
+
 try:
     # Berlin.de requires the user agent to include your email
     email = os.environ['BOOKING_TOOL_EMAIL']
@@ -27,7 +29,9 @@ try:
     # This allows Berlin.de to distinguish different people running the same tool
     script_id = os.environ['BOOKING_TOOL_ID']
 except KeyError:
-    logger.exception("You must set the BOOKING_TOOL_EMAIL and BOOKING_TOOL_ID environment variables.")
+    exception_message = "You must set the BOOKING_TOOL_EMAIL and BOOKING_TOOL_ID environment variables."
+    logger.exception(exception_message)
+    raise Exception(exception_message)
 
 
 timezone = pytz.timezone('Europe/Berlin')
@@ -136,7 +140,8 @@ async def on_connect(websocket, path):
 
 async def main():
     global last_message
-    async with websockets.serve(on_connect, port=80):
+    async with websockets.serve(on_connect, port=server_port):
+        logger.info(f"Server is running on port {server_port}...")
         while True:
             last_message = look_for_appointments()
             websockets.broadcast(connected_clients, json.dumps(last_message))
