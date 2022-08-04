@@ -128,7 +128,7 @@ async def on_connect(websocket, path):
     connected_clients.append(websocket)
     last_message['connectedClients'] = len(connected_clients)
     try:
-        websockets.broadcast(connected_clients, json.dumps(last_message))
+        await websocket.send(json.dumps(last_message))
         await websocket.wait_closed()
     finally:
         connected_clients.remove(websocket)
