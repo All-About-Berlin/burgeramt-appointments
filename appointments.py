@@ -5,8 +5,7 @@ import json
 import logging
 import os
 import pytz
-import requests
-import time
+import aiohttp
 import websockets
 
 
@@ -52,12 +51,11 @@ last_message = {
 }
 
 
-def get_appointments():
+async def get_appointments():
     today = timezone.localize(datetime.now())
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
 
-    session = requests.Session()
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Upgrade-Insecure-Requests': '1',
@@ -67,19 +65,18 @@ def get_appointments():
         'Connection': 'keep-alive',
     }
 
-    # Load the first two months
-    response_p1 = session.get(appointments_url, headers=headers)
-    response_p1.raise_for_status()
-    time.sleep(1)
+    async with aiohttp.ClientSession(raise_for_status=True) as session:
+        # Load the first two months
+        response_p1 = await session.get(appointments_url, headers=headers)
+        await asyncio.sleep(1)
 
-    # Load the next two months
-    response_p2 = session.get(
-        f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/',
-        headers=headers
-    )
-    response_p2.raise_for_status()
+        # Load the next two months
+        response_p2 = await session.get(
+            f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/',
+            headers=headers
+        )
 
-    return sorted(list(set(parse_appointment_dates(response_p1.text) + parse_appointment_dates(response_p2.text))))
+        return sorted(set(parse_appointment_dates(await response_p1.text()) + parse_appointment_dates(await response_p2.text())))
 
 
 def parse_appointment_dates(page_content):
@@ -93,10 +90,10 @@ def parse_appointment_dates(page_content):
     return appointment_dates
 
 
-def look_for_appointments():
+async def look_for_appointments():
     global delay
     try:
-        appointments = get_appointments()
+        appointments = await get_appointments()
         delay = 180
         logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
         return {
@@ -106,13 +103,13 @@ def look_for_appointments():
             'appointmentDates': [datetime_to_json(d) for d in appointments],
             'connectedClients': len(connected_clients),
         }
-    except requests.HTTPError as err:
+    except aiohttp.ClientResponseError as err:
         delay = 360
-        logger.warning(f"Got {err.response.status_code} error. Checking in {delay} seconds")
+        logger.warning(f"Got {err.status} error. Checking in {delay} seconds")
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 502,
-            'message': f'Could not fetch results from Berlin.de - Got HTTP {err.response.status_code}.',
+            'message': f'Could not fetch results from Berlin.de - Got HTTP {err.status}.',
             'appointmentDates': [],
             'connectedClients': len(connected_clients),
         }
@@ -143,7 +140,7 @@ async def main():
     async with websockets.serve(on_connect, port=server_port):
         logger.info(f"Server is running on port {server_port}...")
         while True:
-            last_message = look_for_appointments()
+            last_message = await look_for_appointments()
             websockets.broadcast(connected_clients, json.dumps(last_message))
             await asyncio.sleep(delay)
 
