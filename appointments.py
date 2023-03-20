@@ -83,7 +83,7 @@ def get_appointments():
 
 
 def parse_appointment_dates(page_content):
-    appointment_strainer = SoupStrainer('a', title='An diesem Tag einen Termin buchen')
+    appointment_strainer = SoupStrainer('td', class_='buchbar')
     bookable_cells = BeautifulSoup(page_content, 'lxml', parse_only=appointment_strainer).find_all('a')
     appointment_dates = []
     for bookable_cell in bookable_cells:
