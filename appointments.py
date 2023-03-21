@@ -135,7 +135,7 @@ async def on_connect(client, path):
     global last_message
     connected_clients.append(client)
     try:
-        client.send(json.dumps(last_message))
+        await client.send(json.dumps(last_message))
         await client.wait_closed()
     finally:
         connected_clients.remove(client)
