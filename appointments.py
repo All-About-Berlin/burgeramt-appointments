@@ -48,7 +48,6 @@ last_message = {
     'time': datetime_to_json(datetime.now()),
     'status': 200,
     'appointmentDates': [],
-    'connectedClients': len(connected_clients)
 }
 
 
@@ -104,7 +103,6 @@ def look_for_appointments():
             'status': 200,
             'message': None,
             'appointmentDates': [datetime_to_json(d) for d in appointments],
-            'connectedClients': len(connected_clients),
         }
     except requests.HTTPError as err:
         delay = 360
@@ -114,7 +112,6 @@ def look_for_appointments():
             'status': 502,
             'message': f'Could not fetch results from Berlin.de - Got HTTP {err.response.status_code}.',
             'appointmentDates': [],
-            'connectedClients': len(connected_clients),
         }
     except requests.exceptions.ConnectionError:
         logger.warning("Could not connect to Berlin.de.")
@@ -123,7 +120,6 @@ def look_for_appointments():
             'status': 502,
             'message': 'Could not fetch results from Berlin.de - Got connection error.',
             'appointmentDates': [],
-            'connectedClients': len(connected_clients),
         }
     except Exception as err:
         logger.exception("Could not fetch results due to an unexpected error.")
@@ -132,19 +128,17 @@ def look_for_appointments():
             'status': 500,
             'message': f'An unknown error occured: {str(err)}',
             'appointmentDates': [],
-            'connectedClients': len(connected_clients),
         }
 
 
-async def on_connect(websocket, path):
+async def on_connect(client, path):
     global last_message
-    connected_clients.append(websocket)
-    last_message['connectedClients'] = len(connected_clients)
+    connected_clients.append(client)
     try:
-        websockets.broadcast(connected_clients, json.dumps(last_message))
-        await websocket.wait_closed()
+        client.send(json.dumps(last_message))
+        await client.wait_closed()
     finally:
-        connected_clients.remove(websocket)
+        connected_clients.remove(client)
 
 
 async def main():
