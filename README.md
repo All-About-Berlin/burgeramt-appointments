@@ -2,6 +2,8 @@
 
 This server looks for Bürgeramt appointment every few seconds, and broadcasts the results via websockets. This is the code behind All About Berlin's [Bürgeramt appointment finder](https://allaboutberlin.com/tools/appointment-finder)
 
+If this script helped you, [leave a tip](https://allaboutberlin.com/donate). Building things for Berliners is my full time job.
+
 ## Setup
 
 ### Standalone
