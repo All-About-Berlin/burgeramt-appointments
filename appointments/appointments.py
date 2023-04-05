@@ -44,7 +44,7 @@ async def get_appointments_url(service_page_url: str, email: str, script_id: str
         'Connection': 'keep-alive',
     }
     async with aiohttp.ClientSession() as session:
-        async with session.get(service_page_url, headers=headers, timeout=20) as response:
+        async with session.get(service_page_url, headers=headers) as response:
             service_page_content = await response.text()
             termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
             termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
