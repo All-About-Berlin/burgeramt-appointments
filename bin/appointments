@@ -43,7 +43,7 @@ if __name__ == '__main__':
         default=os.environ.get('BOOKING_TOOL_URL', None)
     )
     parser.add_argument(
-        '-q', '--quiet',
+        '-q', '--quiet', action='store_true',
         help="Limit output to essential logging.",
         default=False
     )
