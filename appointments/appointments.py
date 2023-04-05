@@ -1,12 +1,11 @@
 from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
+import aiohttp
 import asyncio
 import chime
 import json
 import logging
 import pytz
-import requests
-import time
 import websockets
 
 
@@ -35,7 +34,7 @@ last_message = {
 timezone = pytz.timezone('Europe/Berlin')
 
 
-def get_appointments_url(service_page_url: str, email: str, script_id: str):
+async def get_appointments_url(service_page_url: str, email: str, script_id: str):
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Upgrade-Insecure-Requests': '1',
@@ -44,13 +43,15 @@ def get_appointments_url(service_page_url: str, email: str, script_id: str):
         'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
     }
-    service_page_content = requests.get(service_page_url, headers=headers).text
-    termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
-    termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
-    return termin_suchen_link['href']
+    async with aiohttp.ClientSession() as session:
+        async with session.get(service_page_url, headers=headers) as response:
+            service_page_content = await response.text()
+            termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
+            termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
+            return termin_suchen_link['href']
 
 
-def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
+async def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
     """
     Fetches the appointments calendar on Berlin.de, parses it, and returns available appointment dates.
     """
@@ -58,29 +59,35 @@ def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
 
-    session = requests.Session()
-    headers = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
-        'Accept-Language': 'en-gb',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
-    }
+    async with aiohttp.ClientSession(raise_for_status=True) as session:
+        headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
+            'Accept-Language': 'en-gb',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
 
-    # Load the first two months
-    response_p1 = session.get(appointments_url, headers=headers)
-    response_p1.raise_for_status()
-    time.sleep(1)
+        # Load the first two months
+        response_p1 = await session.get(appointments_url, headers=headers)
+        response_p1.raise_for_status()
+        await asyncio.sleep(1)
 
-    # Load the next two months
-    response_p2 = session.get(
-        f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/',
-        headers=headers
+        # Load the next two months
+        response_p2 = await session.get(
+            f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/', headers=headers
+        )
+        response_p2.raise_for_status()
+
+    return sorted(
+        list(
+            set(
+                parse_appointment_dates(await response_p1.text())
+                + parse_appointment_dates(await response_p2.text())
+            )
+        )
     )
-    response_p2.raise_for_status()
-
-    return sorted(list(set(parse_appointment_dates(response_p1.text) + parse_appointment_dates(response_p2.text))))
 
 
 def parse_appointment_dates(page_content: str) -> list:
@@ -97,9 +104,9 @@ def parse_appointment_dates(page_content: str) -> list:
     return appointment_dates
 
 
-def look_for_appointments(appointments_url: str, email: str, script_id: str, quiet: bool) -> dict:
+async def look_for_appointments(appointments_url: str, email: str, script_id: str, quiet: bool) -> dict:
     try:
-        appointments = get_appointments(appointments_url, email, script_id)
+        appointments = await get_appointments(appointments_url, email, script_id)
         logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
         if len(appointments) and not quiet:
             chime.info()
@@ -109,17 +116,17 @@ def look_for_appointments(appointments_url: str, email: str, script_id: str, qui
             'message': None,
             'appointmentDates': [datetime_to_json(d) for d in appointments],
         }
-    except requests.HTTPError as err:
-        logger.warning(f"Got {err.response.status_code} error. Checking in {refresh_delay} seconds")
+    except aiohttp.ClientResponseError as err:
+        logger.warning(f"Got {err.status} error. Checking in {refresh_delay} seconds")
         if not quiet:
             chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 502,
-            'message': f'Could not fetch results from Berlin.de - Got HTTP {err.response.status_code}.',
+            'message': f'Could not fetch results from Berlin.de - Got HTTP {err.status}.',
             'appointmentDates': [],
         }
-    except requests.exceptions.ConnectionError:
+    except aiohttp.ClientConnectorError:
         logger.warning("Could not connect to Berlin.de.")
         if not quiet:
             chime.error()
@@ -160,11 +167,11 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
     """
     global last_message
     logger.info(f"Getting appointment URL for {service_page_url}")
-    appointments_url = get_appointments_url(service_page_url, email, script_id)
+    appointments_url = await get_appointments_url(service_page_url, email, script_id)
     logger.info(f"URL found: {appointments_url}")
     async with websockets.serve(on_connect, port=server_port):
         logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
         while True:
-            last_message = look_for_appointments(appointments_url, email, script_id, quiet)
+            last_message = await look_for_appointments(appointments_url, email, script_id, quiet)
             websockets.broadcast(connected_clients, json.dumps(last_message))
             await asyncio.sleep(refresh_delay)
