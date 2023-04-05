@@ -1,42 +1,23 @@
 from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
 import asyncio
+import chime
 import json
 import logging
-import os
 import pytz
 import requests
 import time
 import websockets
 
 
-logging.basicConfig(
-    datefmt='%Y-%m-%d %H:%M:%S',
-    format='[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s',
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+
+chime.theme('material')
 
 # Disable websocket connection log spam
 logging.getLogger('websockets.server').setLevel(logging.ERROR)
 
-server_port = 80
-
-try:
-    # Berlin.de requires the user agent to include your email.
-    email = os.environ['BOOKING_TOOL_EMAIL']
-
-    # This allows Berlin.de to distinguish different between people running the same tool.
-    script_id = os.environ['BOOKING_TOOL_ID']
-except KeyError:
-    exception_message = "You must set the BOOKING_TOOL_EMAIL and BOOKING_TOOL_ID environment variables."
-    logger.exception(exception_message)
-    raise Exception(exception_message)
-
-
-timezone = pytz.timezone('Europe/Berlin')
-appointments_url = 'https://service.berlin.de/terminvereinbarung/termin/tag.php?termin=1&anliegen[]=120686&dienstleisterlist=122210,122217,327316,122219,327312,122227,327314,122231,327346,122243,327348,122254,122252,329742,122260,329745,122262,329748,122271,327278,122273,327274,122277,327276,330436,122280,327294,122282,327290,122284,327292,122291,327270,122285,327266,122286,327264,122296,327268,150230,329760,122297,327286,122294,327284,122312,329763,122314,329775,122304,327330,122311,327334,122309,327332,317869,122281,327352,122279,329772,122283,122276,327324,122274,327326,122267,329766,122246,327318,122251,327320,122257,327322,122208,327298,122226,327300&herkunft=http%3A%2F%2Fservice.berlin.de%2Fdienstleistung%2F120686%2F'
-delay = 180  # Minimum allowed by Berlin.de's IKT-ZMS team.
+refresh_delay = 180  # Minimum allowed by Berlin.de's IKT-ZMS team.
 
 
 def datetime_to_json(datetime_obj):
@@ -51,7 +32,29 @@ last_message = {
 }
 
 
-def get_appointments():
+timezone = pytz.timezone('Europe/Berlin')
+
+
+def get_appointments_url(service_page_url: str, email: str, script_id: str):
+    headers = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
+        'Accept-Language': 'en-gb',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+    }
+    service_page_content = requests.get(service_page_url, headers=headers).text
+
+    termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
+    termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
+    return termin_suchen_link['href']
+
+
+def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
+    """
+    Fetches the appointments calendar on Berlin.de, parses it, and returns available appointment dates.
+    """
     today = timezone.localize(datetime.now())
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
@@ -81,7 +84,10 @@ def get_appointments():
     return sorted(list(set(parse_appointment_dates(response_p1.text) + parse_appointment_dates(response_p2.text))))
 
 
-def parse_appointment_dates(page_content):
+def parse_appointment_dates(page_content: str) -> list:
+    """
+    Parse the content of the calendar page on Berlin.de, and returns available appointment dates.
+    """
     appointment_strainer = SoupStrainer('td', class_='buchbar')
     bookable_cells = BeautifulSoup(page_content, 'lxml', parse_only=appointment_strainer).find_all('a')
     appointment_dates = []
@@ -92,12 +98,12 @@ def parse_appointment_dates(page_content):
     return appointment_dates
 
 
-def look_for_appointments():
-    global delay
+def look_for_appointments(appointments_url: str, email: str, script_id: str, quiet: bool) -> dict:
     try:
-        appointments = get_appointments()
-        delay = 180
+        appointments = get_appointments(appointments_url, email, script_id)
         logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
+        if len(appointments) and not quiet:
+            chime.info()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 200,
@@ -105,8 +111,9 @@ def look_for_appointments():
             'appointmentDates': [datetime_to_json(d) for d in appointments],
         }
     except requests.HTTPError as err:
-        delay = 360
-        logger.warning(f"Got {err.response.status_code} error. Checking in {delay} seconds")
+        logger.warning(f"Got {err.response.status_code} error. Checking in {refresh_delay} seconds")
+        if not quiet:
+            chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 502,
@@ -115,6 +122,8 @@ def look_for_appointments():
         }
     except requests.exceptions.ConnectionError:
         logger.warning("Could not connect to Berlin.de.")
+        if not quiet:
+            chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 502,
@@ -123,6 +132,8 @@ def look_for_appointments():
         }
     except Exception as err:
         logger.exception("Could not fetch results due to an unexpected error.")
+        if not quiet:
+            chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 500,
@@ -132,6 +143,9 @@ def look_for_appointments():
 
 
 async def on_connect(client, path):
+    """
+    When a client connects, send them the latest results
+    """
     global last_message
     connected_clients.append(client)
     try:
@@ -141,15 +155,15 @@ async def on_connect(client, path):
         connected_clients.remove(client)
 
 
-async def main():
+async def watch_for_appointments(service_page_url: str, email: str, script_id: str, server_port: int, quiet: bool):
+    """
+    Constantly look for new appointments on Berlin.de until stopped.
+    """
     global last_message
+    appointments_url = get_appointments_url(service_page_url, email, script_id)
     async with websockets.serve(on_connect, port=server_port):
-        logger.info(f"Server is running on port {server_port}...")
+        logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
         while True:
-            last_message = look_for_appointments()
+            last_message = look_for_appointments(appointments_url, email, script_id, quiet)
             websockets.broadcast(connected_clients, json.dumps(last_message))
-            await asyncio.sleep(delay)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+            await asyncio.sleep(refresh_delay)
