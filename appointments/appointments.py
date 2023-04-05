@@ -44,7 +44,7 @@ async def get_appointments_url(service_page_url: str, email: str, script_id: str
         'Connection': 'keep-alive',
     }
     async with aiohttp.ClientSession() as session:
-        async with session.get(service_page_url, headers=headers) as response:
+        async with session.get(service_page_url, headers=headers, timeout=20) as response:
             service_page_content = await response.text()
             termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
             termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
@@ -70,13 +70,14 @@ async def get_appointments(appointments_url: str, email: str, script_id: str) ->
         }
 
         # Load the first two months
-        response_p1 = await session.get(appointments_url, headers=headers)
+        response_p1 = await session.get(appointments_url, headers=headers, timeout=20)
         response_p1.raise_for_status()
         await asyncio.sleep(1)
 
         # Load the next two months
         response_p2 = await session.get(
-            f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/', headers=headers
+            f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/',
+            headers=headers, timeout=20
         )
         response_p2.raise_for_status()
 
