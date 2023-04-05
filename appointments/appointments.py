@@ -45,7 +45,6 @@ def get_appointments_url(service_page_url: str, email: str, script_id: str):
         'Connection': 'keep-alive',
     }
     service_page_content = requests.get(service_page_url, headers=headers).text
-
     termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
     termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
     return termin_suchen_link['href']
@@ -160,7 +159,9 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
     Constantly look for new appointments on Berlin.de until stopped.
     """
     global last_message
+    logger.info(f"Getting appointment URL for {service_page_url}")
     appointments_url = get_appointments_url(service_page_url, email, script_id)
+    logger.info(f"URL found: {appointments_url}")
     async with websockets.serve(on_connect, port=server_port):
         logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
         while True:
