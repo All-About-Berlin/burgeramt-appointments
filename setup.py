@@ -21,7 +21,6 @@ setup(
         'beautifulsoup4==4.10.0',
         'chime==0.7.0',
         'pytz',
-        'requests==2.27.1',
         'websockets==10.1',
         'lxml==4.7.1',
     ],
