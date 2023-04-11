@@ -6,6 +6,12 @@ This is the code behind All About Berlin's [Bürgeramt appointment finder](https
 
 If this tool helped you, [make a donation](https://allaboutberlin.com/donate). Building things for Berliners is my full time job.
 
+## What this tool does
+
+This tool looks for appointments on service.berlin.de every 3 minutes. When it finds an appointment, it makes a sound. It can be used as a command line tool, or as the backend for a [web-based tool](https://allaboutberlin.com/tools/appointment-finder).
+
+This tool can't book the appointment for you. It can't look for Ausländerbehörde appointments. These features will not be implemented.
+
 ## Setup
 
 ### 1. Install the script
