@@ -25,6 +25,8 @@ pip install berlin-appointment-finder
 
 You need Python 3 on your computer. If you have macOS or Linux, you already have it. If you have Windows, you're on your own.
 
+If you get a `error: legacy-install-feature`, try some of the [solutions listed here](https://sebhastian.com/python-error-legacy-install-failure/). Do not open an issue; the problem is not related to this project.
+
 ### 2. Find the appointment type you need
 
 Pick a service from the [list of services on Berlin.de](https://service.berlin.de/dienstleistungen/), and copy the URL. For example, `https://service.berlin.de/dienstleistung/120686/` for the *[Anmeldung](https://allaboutberlin.com/glossary/Anmeldung)*.
@@ -37,7 +39,7 @@ Run this command and follow the instructions on your screen:
 appointments
 ```
 
-The script will check Berlin.de every 3 minutes. When it finds appointments, it lists them. Just keep an eye on the terminal.
+The script will check Berlin.de every 3 minutes. When it finds appointments, it lists them. Just keep an eye on the terminal. It will also emit a sound.
 
 ## Instructions for nerds
 
@@ -47,11 +49,11 @@ Type `appointments --help` to see available command line arguments.
 
 These are the available environment variables:
 
-    ```bash
-    BOOKING_TOOL_EMAIL=your@email.com
-    BOOKING_TOOL_ID=johnsmith-dev
-    BOOKING_TOOL_URL=https://service.berlin.de/dienstleistung/120686/
-    ```
+```bash
+BOOKING_TOOL_EMAIL=your@email.com
+BOOKING_TOOL_ID=johnsmith-dev
+BOOKING_TOOL_URL=https://service.berlin.de/dienstleistung/120686/
+```
 
 The script broadcasts broadcasts the appointments it finds with websockets. By default, it broadcasts them on port 80.
 
