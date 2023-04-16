@@ -137,6 +137,16 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
             'message': 'Could not fetch results from Berlin.de - Got connection error.',
             'appointmentDates': [],
         }
+    except asyncio.exceptions.TimeoutError:
+        logger.warning(f"Got Timeout on response from Berlin.de. Checking in {refresh_delay} seconds")
+        if not quiet:
+            chime.error()
+        return {
+            'time': datetime_to_json(datetime.now()),
+            'status': 504,
+            'message': f'Could not fetch results from Berlin.de. - Timeout',
+            'appointmentDates': [],
+        }
     except Exception as err:
         logger.exception("Could not fetch results due to an unexpected error.")
         if not quiet:
