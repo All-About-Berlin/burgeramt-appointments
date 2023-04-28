@@ -34,8 +34,8 @@ last_message = {
 timezone = pytz.timezone('Europe/Berlin')
 
 
-async def get_appointments_url(service_page_url: str, email: str, script_id: str):
-    headers = {
+def get_headers(email: str, script_id: str) -> dict:
+    return {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Upgrade-Insecure-Requests': '1',
         'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
@@ -43,8 +43,11 @@ async def get_appointments_url(service_page_url: str, email: str, script_id: str
         'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
     }
+
+
+async def get_appointments_url(service_page_url: str, email: str, script_id: str):
     async with aiohttp.ClientSession() as session:
-        async with session.get(service_page_url, headers=headers) as response:
+        async with session.get(service_page_url, headers=get_headers(email, script_id)) as response:
             service_page_content = await response.text()
             termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
             termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
@@ -60,35 +63,15 @@ async def get_appointments(appointments_url: str, email: str, script_id: str) ->
     next_month_timestamp = int(next_month.timestamp())
 
     async with aiohttp.ClientSession(raise_for_status=True) as session:
-        headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Upgrade-Insecure-Requests': '1',
-            'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
-            'Accept-Language': 'en-gb',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        }
-
         # Load the first two months
-        response_p1 = await session.get(appointments_url, headers=headers, timeout=20)
-        response_p1.raise_for_status()
-        await asyncio.sleep(1)
+        async with session.get(appointments_url, headers=get_headers(email, script_id), timeout=20) as response_page1:
+            page1_dates = parse_appointment_dates(await response_page1.text())
 
-        # Load the next two months
-        response_p2 = await session.get(
-            f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/',
-            headers=headers, timeout=20
-        )
-        response_p2.raise_for_status()
+        page2_url = f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/'
+        async with session.get(page2_url, headers=get_headers(email, script_id), timeout=20) as response_page2:
+            page2_dates = parse_appointment_dates(await response_page2.text())
 
-    return sorted(
-        list(
-            set(
-                parse_appointment_dates(await response_p1.text())
-                + parse_appointment_dates(await response_p2.text())
-            )
-        )
-    )
+    return sorted(list(set(page1_dates + page2_dates)))
 
 
 def parse_appointment_dates(page_content: str) -> list:
@@ -138,13 +121,13 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
             'appointmentDates': [],
         }
     except asyncio.exceptions.TimeoutError:
-        logger.warning(f"Got Timeout on response from Berlin.de. Checking in {refresh_delay} seconds")
+        logger.exception(f"Got Timeout on response from Berlin.de. Checking in {refresh_delay} seconds")
         if not quiet:
             chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 504,
-            'message': f'Could not fetch results from Berlin.de. - Timeout',
+            'message': 'Could not fetch results from Berlin.de. - Request timed out',
             'appointmentDates': [],
         }
     except Exception as err:
