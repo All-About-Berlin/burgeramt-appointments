@@ -60,3 +60,7 @@ The script broadcasts broadcasts the appointments it finds with websockets. By d
 A Dockerfile is supplied in this repo. It's the same one I use on All About Berlin.
 
 The polling rate is limited to 180 seconds (3 minutes), as required by the Berlin.de IKT-ZMS team (ikt-zms@seninnds.berlin.de).
+
+### Local development
+
+To work on this script, install it with `pip install -e /path/to/this/repo`. When you run `appointments`, it will run your local version with any changes you have made to it. You only need to run this command once.
