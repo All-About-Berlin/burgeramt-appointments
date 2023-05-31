@@ -41,6 +41,14 @@ appointments
 
 The script will check Berlin.de every 3 minutes. When it finds appointments, it lists them. Just keep an eye on the terminal. It will also emit a sound.
 
+### Updating the script
+
+If you have an older version of the script, update it with this command:
+
+```
+pip install --upgrade berlin-appointment-finder
+```
+
 ## Instructions for nerds
 
 This script can be configured with command line arguments or environment variables.
