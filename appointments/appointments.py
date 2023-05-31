@@ -45,13 +45,9 @@ def get_headers(email: str, script_id: str) -> dict:
     }
 
 
-async def get_appointments_url(service_page_url: str, email: str, script_id: str):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(service_page_url, headers=get_headers(email, script_id)) as response:
-            service_page_content = await response.text()
-            termin_suchen_button = SoupStrainer('div', class_='zmstermin-multi inner')
-            termin_suchen_link = BeautifulSoup(service_page_content, 'lxml', parse_only=termin_suchen_button).find('a')
-            return termin_suchen_link['href']
+def get_appointments_url(service_page_url: str):
+    service_id = service_page_url.rstrip('/').split('/')[-1]
+    return f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
 
 
 async def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
@@ -161,7 +157,7 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
     """
     global last_message
     logger.info(f"Getting appointment URL for {service_page_url}")
-    appointments_url = await get_appointments_url(service_page_url, email, script_id)
+    appointments_url = get_appointments_url(service_page_url)
     logger.info(f"URL found: {appointments_url}")
     async with websockets.serve(on_connect, port=server_port):
         logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
