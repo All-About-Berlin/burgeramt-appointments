@@ -75,7 +75,7 @@ def parse_appointment_dates(page_content: str) -> list:
     Parse the content of the calendar page on Berlin.de, and returns available appointment dates.
     """
     appointment_strainer = SoupStrainer('td', class_='buchbar')
-    bookable_cells = BeautifulSoup(page_content, 'lxml', parse_only=appointment_strainer).find_all('a')
+    bookable_cells = BeautifulSoup(page_content, 'html.parser', parse_only=appointment_strainer).find_all('a')
     appointment_dates = []
     for bookable_cell in bookable_cells:
         timestamp = int(bookable_cell['href'].rstrip('/').split('/')[-1])

@@ -22,7 +22,6 @@ setup(
         'chime==0.7.0',
         'pytz',
         'websockets==10.1',
-        'lxml==4.7.1',
     ],
     zip_safe=False,
 )
