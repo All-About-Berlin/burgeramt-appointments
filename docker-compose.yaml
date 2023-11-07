@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  appointments:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: /bin/bash
+    stdin_open: true
+    tty: true

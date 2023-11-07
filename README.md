@@ -67,6 +67,27 @@ The script broadcasts broadcasts the appointments it finds with websockets. By d
 
 A Dockerfile is supplied in this repo. It's the same one I use on All About Berlin.
 
+## Dockerized Appointments Service
+
+### Overview
+This repository contains a Dockerized version of the "appointments" service. The Docker Compose setup allows you to easily build and run the service within a container.
+
+### Usage
+
+#### Prerequisites
+* Docker installed on your machine.
+
+#### Build and Run
+
+```bash
+docker-compose run --rm appointments appointments --q
+```
+
+If you want to use another argument like `--help` you can run the follow command:
+```bash
+docker-compose run --rm appointments
+```
+
 The polling rate is limited to 180 seconds (3 minutes), as required by the Berlin.de IKT-ZMS team (ikt-zms@seninnds.berlin.de).
 
 ### Local development
