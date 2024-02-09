@@ -52,14 +52,14 @@ def get_appointments_url(service_page_url: str):
 
 async def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
     """
-    Fetches the appointments calendar on Berlin.de, parses it, and returns available appointment dates.
+    Fetch the appointments calendar on Berlin.de, parse it, and return appointment dates.
     """
     today = timezone.localize(datetime.now())
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
 
     async with aiohttp.ClientSession(raise_for_status=True) as session:
-        # Load the first two months
+        # Load the first two calendar pages
         async with session.get(appointments_url, headers=get_headers(email, script_id), timeout=20) as response_page1:
             page1_dates = parse_appointment_dates(await response_page1.text())
 
@@ -72,7 +72,7 @@ async def get_appointments(appointments_url: str, email: str, script_id: str) ->
 
 def parse_appointment_dates(page_content: str) -> list:
     """
-    Parse the content of the calendar page on Berlin.de, and returns available appointment dates.
+    Parse the content of the calendar page on Berlin.de, return available appointments.
     """
     appointment_strainer = SoupStrainer('td', class_='buchbar')
     bookable_cells = BeautifulSoup(page_content, 'html.parser', parse_only=appointment_strainer).find_all('a')
@@ -85,6 +85,9 @@ def parse_appointment_dates(page_content: str) -> list:
 
 
 async def look_for_appointments(appointments_url: str, email: str, script_id: str, quiet: bool) -> dict:
+    """
+    Look for appointments, return a response dict
+    """
     try:
         appointments = await get_appointments(appointments_url, email, script_id)
         logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
