@@ -72,3 +72,13 @@ The polling rate is limited to 180 seconds (3 minutes), as required by the Berli
 ### Local development
 
 To work on this script, install it with `pip install -e /path/to/this/repo`. When you run `appointments`, it will run your local version with any changes you have made to it. You only need to run this command once.
+
+## FAQ
+
+### Can you make it work with Ausländerbehörde appointments?
+
+No. It's not possible due to rate-limiting by Berlin.de. [You probably don't need an Ausländerbehörde appointment](https://allaboutberlin.com/guides/berlin-auslanderbehorde-appointment) anyway.
+
+### I get an HTTP 418 response
+
+This means that Berlin.de is blocking you as a bot. There is nothing I can do to fix this problem.
