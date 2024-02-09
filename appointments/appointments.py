@@ -28,8 +28,8 @@ last_message = {
     'time': datetime_to_json(datetime.now()),
     'status': 200,
     'appointmentDates': [],
+    'lastAppointmentsFoundOn': None,
 }
-
 
 timezone = pytz.timezone('Europe/Berlin')
 
@@ -165,6 +165,13 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
     async with websockets.serve(on_connect, port=server_port):
         logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
         while True:
+            last_appts_found_on = last_message['lastAppointmentsFoundOn']
             last_message = await look_for_appointments(appointments_url, email, script_id, quiet)
+            if last_message['appointmentDates']:
+                last_message['lastAppointmentsFoundOn'] = datetime_to_json(datetime.now())
+            else:
+                last_message['lastAppointmentsFoundOn'] = last_appts_found_on
+
             websockets.broadcast(connected_clients, json.dumps(last_message))
+
             await asyncio.sleep(refresh_delay)
