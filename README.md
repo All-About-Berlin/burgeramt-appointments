@@ -80,6 +80,6 @@ To work on this script, install it with `pip install -e /path/to/this/repo`. Whe
 
 No. It's not possible due to rate-limiting by Berlin.de. [You probably don't need an Ausländerbehörde appointment](https://allaboutberlin.com/guides/berlin-auslanderbehorde-appointment) anyway.
 
-### I get an HTTP 418 response
+### I get an HTTP 403 or 418 response
 
-This means that Berlin.de is blocking you as a bot. There is nothing I can do to fix this problem.
+This means that Berlin.de is blocking you as a bot. There is nothing I can do to fix this problem. Please do not open an issue about this.
