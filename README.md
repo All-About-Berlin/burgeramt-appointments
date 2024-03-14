@@ -61,6 +61,7 @@ These are the available environment variables:
 BOOKING_TOOL_EMAIL=your@email.com
 BOOKING_TOOL_ID=johnsmith-dev
 BOOKING_TOOL_URL=https://service.berlin.de/dienstleistung/120686/
+BOOKING_TOOL_PORT=80
 ```
 
 The script broadcasts broadcasts the appointments it finds with websockets. By default, it broadcasts them on port 80.
