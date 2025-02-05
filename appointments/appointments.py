@@ -19,7 +19,7 @@ logging.getLogger('websockets.server').setLevel(logging.ERROR)
 refresh_delay = 180  # Minimum allowed by Berlin.de's IKT-ZMS team.
 
 
-def datetime_to_json(datetime_obj):
+def datetime_to_json(datetime_obj: datetime) -> str:
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
@@ -34,7 +34,7 @@ last_message = {
 timezone = pytz.timezone('Europe/Berlin')
 
 
-def get_headers(email: str, script_id: str) -> dict:
+def get_headers(email: str, script_id: str) -> dict[str, str]:
     return {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Upgrade-Insecure-Requests': '1',
@@ -45,7 +45,7 @@ def get_headers(email: str, script_id: str) -> dict:
     }
 
 
-def get_appointments_url(service_page_url: str):
+def get_appointments_url(service_page_url: str) -> str:
     service_id = service_page_url.rstrip('/').split('/')[-1]
     return f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
 
@@ -70,7 +70,7 @@ async def get_appointments(appointments_url: str, email: str, script_id: str) ->
     return sorted(list(set(page1_dates + page2_dates)))
 
 
-def parse_appointment_dates(page_content: str) -> list:
+def parse_appointment_dates(page_content: str) -> list[datetime]:
     """
     Parse the content of the calendar page on Berlin.de, return available appointments.
     """
@@ -141,7 +141,7 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
         }
 
 
-async def on_connect(client, path):
+async def on_connect(client, path) -> None:
     """
     When a client connects, send them the latest results
     """
