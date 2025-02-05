@@ -9,7 +9,13 @@ setup(
     description='Finds appointments at the Berlin Bürgeramt, broadcasts them via websockets',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/nicbou/burgeramt-appointments-websockets',
+    url='https://allaboutberlin.com/tools/appointment-finder',
+    project_urls={
+        'Documentation': 'https://github.com/All-About-Berlin/burgeramt-appointments',
+        'Funding': 'https://allaboutberlin.com/donate',
+        'Source Code': 'https://github.com/All-About-Berlin/burgeramt-appointments',
+        'Issues': 'https://github.com/All-About-Berlin/burgeramt-appointments/issues'
+    },
     author='Nicolas Bouliane',
     author_email='contact@nicolasbouliane.com',
     license='MIT',
