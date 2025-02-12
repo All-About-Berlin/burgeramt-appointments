@@ -141,7 +141,7 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
         }
 
 
-async def on_connect(client, path) -> None:
+async def on_connect(client) -> None:
     """
     When a client connects, send them the latest results
     """
