@@ -100,7 +100,7 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
             'appointmentDates': [datetime_to_json(d) for d in appointments],
         }
     except aiohttp.ClientResponseError as err:
-        logger.warning(f"Got {err.status} error. Checking in {refresh_delay} seconds")
+        logger.warning(f"Got {err.status} error for URL '{err.request_info.url}'. Checking in {refresh_delay} seconds")
         if not quiet:
             chime.error()
         return {
