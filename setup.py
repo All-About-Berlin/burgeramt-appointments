@@ -5,7 +5,7 @@ long_description = (Path(__file__).parent / "README.md").read_text()
 
 setup(
     name='berlin-appointment-finder',
-    version='1.1.2',
+    version='2.0.0',
     description='Finds appointments at the Berlin Bürgeramt, broadcasts them via websockets',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -23,9 +23,8 @@ setup(
     scripts=['bin/appointments'],
     python_requires='>=3.10',
     install_requires=[
-        'aiohttp==3.11.11',
-        'beautifulsoup4==4.12.3',
         'chime==0.7.0',
+        'playwright==1.55.0',
         'pytz',
         'websockets==14.2',
     ],

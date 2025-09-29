@@ -1,6 +1,6 @@
-from bs4 import BeautifulSoup, SoupStrainer
 from datetime import datetime
-import aiohttp
+from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeoutError
+from typing import Any
 import asyncio
 import chime
 import json
@@ -19,6 +19,13 @@ logging.getLogger('websockets.server').setLevel(logging.ERROR)
 refresh_delay = 180  # Minimum allowed by Berlin.de's IKT-ZMS team.
 
 
+class HTTPError(Exception):
+    def __init__(self, status: int, url: str):
+        self.status = status
+        self.url = url
+        super().__init__(f"Got {status} error for URL '{url}'")
+
+
 def datetime_to_json(datetime_obj: datetime) -> str:
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -34,23 +41,19 @@ last_message = {
 timezone = pytz.timezone('Europe/Berlin')
 
 
-def get_headers(email: str, script_id: str) -> dict[str, str]:
-    return {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': f"Mozilla/5.0 AppointmentBookingTool/1.1 (https://github.com/nicbou/burgeramt-appointments-websockets; {email}; {script_id})",
-        'Accept-Language': 'en-gb',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
-    }
+async def goto_or_fail(page: Page, url: str, timeout=10000) -> None:
+    try:
+        response = await page.goto(url, timeout=timeout)
+    except PlaywrightTimeoutError as err:
+        raise TimeoutError(f"Request to '{url}' timed out") from err
+
+    if not response:
+        raise ConnectionError(f"Could not connect to {url}")
+    elif not response.ok:
+        raise HTTPError(response.status, url)
 
 
-def get_appointments_url(service_page_url: str) -> str:
-    service_id = service_page_url.rstrip('/').split('/')[-1]
-    return f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
-
-
-async def get_appointments(appointments_url: str, email: str, script_id: str) -> list:
+async def get_appointments(browser: Browser, appointments_url: str, email: str, script_id: str) -> list[datetime]:
     """
     Fetch the appointments calendar on Berlin.de, parse it, and return appointment dates.
     """
@@ -58,38 +61,41 @@ async def get_appointments(appointments_url: str, email: str, script_id: str) ->
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
 
-    async with aiohttp.ClientSession(raise_for_status=True) as session:
-        # Load the first two calendar pages
-        async with session.get(appointments_url, headers=get_headers(email, script_id), timeout=20) as response_page1:
-            page1_dates = parse_appointment_dates(await response_page1.text())
+    context = await browser.new_context()
+    page = await context.new_page()
 
-        page2_url = f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/'
-        async with session.get(page2_url, headers=get_headers(email, script_id), timeout=20) as response_page2:
-            page2_dates = parse_appointment_dates(await response_page2.text())
+    try:
+        # Load the first calendar page
+        await goto_or_fail(page, appointments_url)
+        page1_dates = await parse_appointment_dates(page)
+
+        # Load the next month page
+        await goto_or_fail(page, f'https://service.berlin.de/terminvereinbarung/termin/day/{next_month_timestamp}/')
+        page2_dates = await parse_appointment_dates(page)
+    finally:
+        await page.close()
+        await context.close()
 
     return sorted(list(set(page1_dates + page2_dates)))
 
 
-def parse_appointment_dates(page_content: str) -> list[datetime]:
-    """
-    Parse the content of the calendar page on Berlin.de, return available appointments.
-    """
-    appointment_strainer = SoupStrainer('td', class_='buchbar')
-    bookable_cells = BeautifulSoup(page_content, 'html.parser', parse_only=appointment_strainer).find_all('a')
+async def parse_appointment_dates(page: Page) -> list[datetime]:
+    links = await page.query_selector_all("td.buchbar a")
     appointment_dates = []
-    for bookable_cell in bookable_cells:
-        timestamp = int(bookable_cell['href'].rstrip('/').split('/')[-1])
-        appointment_dates.append(timezone.localize(datetime.fromtimestamp(timestamp)))
-
+    for link in links:
+        href = await link.get_attribute("href")
+        if href:
+            timestamp = int(href.rstrip("/").split("/")[-1])
+            appointment_dates.append(timezone.localize(datetime.fromtimestamp(timestamp)))
     return appointment_dates
 
 
-async def look_for_appointments(appointments_url: str, email: str, script_id: str, quiet: bool) -> dict:
+async def look_for_appointments(browser: Browser, appointments_url: str, email: str, script_id: str, quiet: bool) -> dict[str, Any]:
     """
     Look for appointments, return a response dict
     """
     try:
-        appointments = await get_appointments(appointments_url, email, script_id)
+        appointments = await get_appointments(browser, appointments_url, email, script_id)
         logger.info(f"Found {len(appointments)} appointments: {[datetime_to_json(d) for d in appointments]}")
         if len(appointments) and not quiet:
             chime.info()
@@ -99,51 +105,51 @@ async def look_for_appointments(appointments_url: str, email: str, script_id: st
             'message': None,
             'appointmentDates': [datetime_to_json(d) for d in appointments],
         }
-    except aiohttp.ClientResponseError as err:
-        logger.warning(f"Got {err.status} error for URL '{err.request_info.url}'. Checking in {refresh_delay} seconds")
+    except HTTPError as err:
+        logger.warning(f"{str(err)}. Checking in {refresh_delay} seconds")
         if not quiet:
             chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 502,
-            'message': f'Could not fetch results from Berlin.de - Got HTTP {err.status}.',
+            'message': f'Could not fetch results from Berlin.de - {str(err)}',
             'appointmentDates': [],
         }
-    except aiohttp.ClientConnectorError:
-        logger.warning("Could not connect to Berlin.de.")
-        if not quiet:
-            chime.error()
-        return {
-            'time': datetime_to_json(datetime.now()),
-            'status': 502,
-            'message': 'Could not fetch results from Berlin.de - Got connection error.',
-            'appointmentDates': [],
-        }
-    except asyncio.exceptions.TimeoutError:
-        logger.exception(f"Got Timeout on response from Berlin.de. Checking in {refresh_delay} seconds")
+    except TimeoutError as err:
+        logger.warning(f"{str(err)}. Checking in {refresh_delay} seconds")
         if not quiet:
             chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 504,
-            'message': 'Could not fetch results from Berlin.de. - Request timed out',
+            'message': f'Could not fetch results from Berlin.de. - {str(err)}',
+            'appointmentDates': [],
+        }
+    except PlaywrightTimeoutError as err:
+        logger.exception(f"Element selection timeout. Checking in {refresh_delay} seconds")
+        if not quiet:
+            chime.error()
+        return {
+            'time': datetime_to_json(datetime.now()),
+            'status': 504,
+            'message': f'Could not fetch results from Berlin.de. - {str(err)}',
             'appointmentDates': [],
         }
     except Exception as err:
-        logger.exception("Could not fetch results due to an unexpected error.")
+        logger.exception("Unexpected error.")
         if not quiet:
             chime.error()
         return {
             'time': datetime_to_json(datetime.now()),
             'status': 500,
-            'message': f'An unknown error occured: {str(err)}',
+            'message': f'Could not find appointments. - {str(err)}',
             'appointmentDates': [],
         }
 
 
 async def on_connect(client) -> None:
     """
-    When a client connects, send them the latest results
+    When a client connects via websockets, send them the latest results
     """
     global last_message
     connected_clients.append(client)
@@ -154,19 +160,24 @@ async def on_connect(client) -> None:
         connected_clients.remove(client)
 
 
-async def watch_for_appointments(service_page_url: str, email: str, script_id: str, server_port: int, quiet: bool):
+async def watch_for_appointments(service_page_url: str, email: str, script_id: str, server_port: int, quiet: bool) -> None:
     """
-    Constantly look for new appointments on Berlin.de until stopped.
+    Constantly look for new appointments on Berlin.de until stopped. Broadcast the appointments via websockets.
     """
     global last_message
     logger.info(f"Getting appointment URL for {service_page_url}")
-    appointments_url = get_appointments_url(service_page_url)
+
+    service_id = service_page_url.rstrip('/').split('/')[-1]
+    appointments_url = f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
+
     logger.info(f"URL found: {appointments_url}")
-    async with websockets.serve(on_connect, port=server_port):
+    async with websockets.serve(on_connect, port=server_port), async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+
         logger.info(f"Server is running on port {server_port}. Looking for appointments every {refresh_delay} seconds.")
         while True:
             last_appts_found_on = last_message['lastAppointmentsFoundOn']
-            last_message = await look_for_appointments(appointments_url, email, script_id, quiet)
+            last_message = await look_for_appointments(browser, appointments_url, email, script_id, quiet)
             if last_message['appointmentDates']:
                 last_message['lastAppointmentsFoundOn'] = datetime_to_json(datetime.now())
             else:
@@ -175,3 +186,5 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
             websockets.broadcast(connected_clients, json.dumps(last_message))
 
             await asyncio.sleep(refresh_delay)
+
+        await browser.close()
