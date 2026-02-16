@@ -167,8 +167,11 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
     global last_message
     logger.info(f"Getting appointment URL for {service_page_url}")
 
-    service_id = service_page_url.rstrip('/').split('/')[-1]
-    appointments_url = f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
+    if service_page_url.startswith('https://service.berlin.de/dienstleistung'):
+        service_id = service_page_url.rstrip('/').split('/')[-1]
+        appointments_url = f"https://service.berlin.de/terminvereinbarung/termin/all/{service_id}/"
+    else:
+        appointments_url = service_page_url
 
     logger.info(f"URL found: {appointments_url}")
     async with websockets.serve(on_connect, port=server_port), async_playwright() as p:

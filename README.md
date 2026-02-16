@@ -83,3 +83,16 @@ No. It's not possible due to rate-limiting by Berlin.de. [You probably don't nee
 ### I get an HTTP 403 or 418 response
 
 This means that Berlin.de is blocking you as a bot. There is nothing I can do to fix this problem. Please do not open an issue about this.
+
+### How to filter appointments by location
+
+The `service.berlin.de` website allows you to search for appointments at selected locations only.
+To use the same filter in the application, follow these steps:
+
+1. Install the script or clone the repository.
+2. Go to <https://service.berlin.de/dienstleistung/120686/>
+3. Select the required locations.
+4. Open the browser developer console (F12) and go to the Network tab.
+5. Click the “An diesem Standort einen Termin buchen” button.
+6. In the Network tab, copy the URL you were redirected to. It will look like: `tag.php?termin=...`
+7. Run the application and pass this link as the URL: `appointments --url "https://service.berlin.de/terminvereinbarung/termin/tag.php?termin=1&dienstleisterlist=122..."`
