@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "berlin-appointment-finder"
+version = "2.0.0"
+description = "Finds appointments at the Berlin Bürgeramt, broadcasts them via websockets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Nicolas Bouliane", email = "contact@nicolasbouliane.com" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = ["berlin", "appointments", "automation", "playwright"]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://allaboutberlin.com/tools/appointment-finder"
+Issues = "https://github.com/All-About-Berlin/burgeramt-appointments/issues"
+Documentation = "https://github.com/All-About-Berlin/burgeramt-appointments"
+Funding = "https://allaboutberlin.com/donate"
+"Source Code" = "https://github.com/All-About-Berlin/burgeramt-appointments"
+
+[project.scripts]
+appointments = "appointments.appointments:main"
+
+# Core dependencies pinned to verified versions for stability and PyPI availability
+dependencies = [
+    "chime==0.7.0",
+    "playwright==1.44.0",
+    "pytz==2024.1",
+    "websockets==12.0",
+]
+
+[tool.setuptools.packages.find]
+# Automatic package discovery

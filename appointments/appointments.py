@@ -5,8 +5,10 @@ import asyncio
 import chime
 import json
 import logging
+import os  # Moved from inside
 import pytz
 import websockets
+import argparse  # Moved from inside
 
 
 logger = logging.getLogger()
@@ -28,6 +30,80 @@ class HTTPError(Exception):
 
 def datetime_to_json(datetime_obj: datetime) -> str:
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def ask_question(question: str, instructions: str) -> str:
+    print(f"\033[1m{question}\033[0m")
+    if instructions:
+        print(instructions)
+    return input("> \033[0m")
+
+
+def main(argv: list[str] | None = None) -> None:
+    # Explicitly configure logging as requested in code review
+    logging.basicConfig(
+        datefmt='%Y-%m-%d %H:%M:%S',
+        format='[%(asctime)s] %(levelname)s: %(message)s',
+        level=logging.INFO
+    )
+
+    port_env = os.environ.get('BOOKING_TOOL_PORT')
+    try:
+        default_port = int(port_env) if port_env is not None else 80
+    except ValueError:
+        logger.warning("Invalid BOOKING_TOOL_PORT value %r; falling back to 80", port_env)
+        default_port = 80
+
+    parser = argparse.ArgumentParser(
+        prog='appointments',
+        description=(
+            'Finds Bürgeramt and other office appointments in Berlin. '
+            'Also broadcasts results via websockets.'
+        ),
+        epilog='Made with ❤️ in Berlin'
+    )
+    parser.add_argument(
+        '-i', '--id',
+        help="A unique ID for your script. Used by the Berlin.de team to identify requests from you.",
+        default=os.environ.get('BOOKING_TOOL_ID', '')
+    )
+    parser.add_argument(
+        '-e', '--email',
+        help="Your email address. Required by the Berlin.de team.",
+        default=os.environ.get('BOOKING_TOOL_EMAIL', None)
+    )
+    parser.add_argument(
+        '-u', '--url',
+        help="URL to the service page on Berlin.de. For example, \"https://service.berlin.de/dienstleistung/120686/\"",
+        default=os.environ.get('BOOKING_TOOL_URL', None)
+    )
+    parser.add_argument(
+        '-q', '--quiet', action='store_true',
+        help="Limit output to essential logging.",
+        default=False
+    )
+    parser.add_argument(
+        '-p', '--port', type=int,
+        help="Expose a websockets server on that port. Allows other software to listen for new appointments.",
+        default=default_port
+    )
+    args = parser.parse_args(argv)
+
+    if args.quiet:
+        logging.getLogger().setLevel(logging.WARNING)
+
+    service_page_url = args.url or ask_question(
+        "What is the URL of the service you want to watch?",
+        ("This is the service.berlin.de page for the service you want an appointment for. "
+         "For example, \"https://service.berlin.de/dienstleistung/120686/\"")
+    )
+
+    email = args.email or ask_question(
+        "What is your email address?",
+        "It will be included in the requests this script makes. It's required by the Berlin.de appointments team."
+    )
+
+    asyncio.run(watch_for_appointments(service_page_url, email, args.id, args.port, args.quiet))
 
 
 connected_clients = []
@@ -90,7 +166,39 @@ async def parse_appointment_dates(page: Page) -> list[datetime]:
     return appointment_dates
 
 
-async def look_for_appointments(browser: Browser, appointments_url: str, email: str, script_id: str, quiet: bool) -> dict[str, Any]:
+def _handle_appointment_error(
+    error_type: str,
+    err: Exception,
+    quiet: bool,
+    status_code: int,
+    log_level: int = logging.WARNING
+) -> dict[str, Any]:
+    """Helper to handle common error reporting for look_for_appointments."""
+    message = f'Could not fetch results from Berlin.de. - {str(err)}'
+    if error_type == "unexpected":
+        logger.exception("Unexpected error.")
+    elif error_type == "playwright_timeout":
+        logger.exception(f"Element selection timeout. Checking in {refresh_delay} seconds")
+    else:
+        logger.log(log_level, f"{str(err)}. Checking in {refresh_delay} seconds")
+
+    if not quiet:
+        chime.error()
+    return {
+        'time': datetime_to_json(datetime.now()),
+        'status': status_code,
+        'message': message if error_type != "unexpected" else f'Could not find appointments. - {str(err)}',
+        'appointmentDates': [],
+    }
+
+
+async def look_for_appointments(
+    browser: Browser,
+    appointments_url: str,
+    email: str,
+    script_id: str,
+    quiet: bool
+) -> dict[str, Any]:
     """
     Look for appointments, return a response dict
     """
@@ -106,52 +214,19 @@ async def look_for_appointments(browser: Browser, appointments_url: str, email: 
             'appointmentDates': [datetime_to_json(d) for d in appointments],
         }
     except HTTPError as err:
-        logger.warning(f"{str(err)}. Checking in {refresh_delay} seconds")
-        if not quiet:
-            chime.error()
-        return {
-            'time': datetime_to_json(datetime.now()),
-            'status': 502,
-            'message': f'Could not fetch results from Berlin.de - {str(err)}',
-            'appointmentDates': [],
-        }
+        return _handle_appointment_error("http", err, quiet, 502)
     except TimeoutError as err:
-        logger.warning(f"{str(err)}. Checking in {refresh_delay} seconds")
-        if not quiet:
-            chime.error()
-        return {
-            'time': datetime_to_json(datetime.now()),
-            'status': 504,
-            'message': f'Could not fetch results from Berlin.de. - {str(err)}',
-            'appointmentDates': [],
-        }
+        return _handle_appointment_error("timeout", err, quiet, 504)
     except PlaywrightTimeoutError as err:
-        logger.exception(f"Element selection timeout. Checking in {refresh_delay} seconds")
-        if not quiet:
-            chime.error()
-        return {
-            'time': datetime_to_json(datetime.now()),
-            'status': 504,
-            'message': f'Could not fetch results from Berlin.de. - {str(err)}',
-            'appointmentDates': [],
-        }
+        return _handle_appointment_error("playwright_timeout", err, quiet, 504)
     except Exception as err:
-        logger.exception("Unexpected error.")
-        if not quiet:
-            chime.error()
-        return {
-            'time': datetime_to_json(datetime.now()),
-            'status': 500,
-            'message': f'Could not find appointments. - {str(err)}',
-            'appointmentDates': [],
-        }
+        return _handle_appointment_error("unexpected", err, quiet, 500)
 
 
 async def on_connect(client) -> None:
     """
     When a client connects via websockets, send them the latest results
     """
-    global last_message
     connected_clients.append(client)
     try:
         await client.send(json.dumps(last_message))
@@ -188,3 +263,7 @@ async def watch_for_appointments(service_page_url: str, email: str, script_id: s
             await asyncio.sleep(refresh_delay)
 
         await browser.close()
+
+
+if __name__ == '__main__':
+    main()
