@@ -4,12 +4,14 @@ import argparse
 import asyncio
 import logging
 import os
+from logging.handlers import RotatingFileHandler
 
 
 logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
     format='[%(asctime)s] %(levelname)s: %(message)s',
     level=logging.INFO,
+    handlers=[RotatingFileHandler('/var/appointments/appointments.log', maxBytes=50_000_000, backupCount=3)],
 )
 logger = logging.getLogger(__name__)
 
