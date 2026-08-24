@@ -8,13 +8,19 @@ import logging
 import pytz
 import websockets
 
+from websockets.exceptions import InvalidUpgrade
 
 logger = logging.getLogger()
 
 chime.theme('material')
 
 # Disable websocket connection log spam
-logging.getLogger('websockets.server').setLevel(logging.ERROR)
+logging.getLogger("websockets.server").setLevel(logging.ERROR)
+
+# Bots making plain HTTP requests fill the log with noise. Disable that.
+logging.getLogger("websockets.server").addFilter(
+    lambda r: not (r.exc_info and isinstance(r.exc_info[1], InvalidUpgrade))
+)
 
 refresh_delay = 180  # Minimum allowed by Berlin.de's IKT-ZMS team.
 
