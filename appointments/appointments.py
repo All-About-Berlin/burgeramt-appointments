@@ -70,7 +70,9 @@ async def get_appointments(
     next_month = timezone.localize(datetime(today.year, today.month % 12 + 1, 1))
     next_month_timestamp = int(next_month.timestamp())
 
-    context = await browser.new_context()
+    context = await browser.new_context(
+        user_agent=f"AppointmentBookingTool/{script_id} ({email})"
+    )
     page = await context.new_page()
 
     try:
