@@ -2,7 +2,7 @@
 
 This server looks for Bürgeramt appointment every few seconds. You can make it look for any kind of appointment.
 
-This is the code behind All About Berlin's [Bürgeramt appointment finder](https://nicolasbouliane.com/projects/appointment-finder). It ran from 2022 to 2026 before I brought it offline. Appointments are now easier to find, and such a tool should not be necessary. **It is no longer maintained.**
+This is the code behind [All About Berlin](https://allaboutberlin.com)'s [Bürgeramt appointment finder](https://nicolasbouliane.com/projects/appointment-finder). It ran from 2022 to 2026 before I brought it offline. Appointments are now easier to find, and such a tool should not be necessary. **It is no longer maintained.**
 
 If this tool helped you, [make a donation](https://allaboutberlin.com/donate). Building things for Berliners is my full time job.
 
